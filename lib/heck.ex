@@ -2,19 +2,24 @@ defmodule Heck do
   @moduledoc """
   A local Hex repository, for trying packages out before publishing them.
 
-  `mix heck.publish` builds the current package and adds it to the repository,
-  and `mix heck.server` serves it. Projects then depend on its packages with
-  `repo: "local"`.
+  `mix heck.publish` builds the current package, adds it to the repository and
+  starts serving it in the background, if it isn't already. Projects then depend
+  on its packages with `repo: "heck"`.
 
   The repository lives in `~/.heck`, or in `HECK_HOME` if set. It's served on
-  port 4325, or on `HECK_PORT` if set.
+  `HECK_PORT` if set, and otherwise on port 4325, or any free one if that's
+  busy.
   """
 
-  @repo "local"
+  @repo "heck"
   @default_port 4325
+  @version Mix.Project.config()[:version]
 
   @doc "The name of the repository, as projects refer to it."
   def repo, do: @repo
+
+  @doc false
+  def version, do: @version
 
   @doc false
   def home, do: System.get_env("HECK_HOME") || Path.expand("~/.heck")
@@ -27,19 +32,23 @@ defmodule Heck do
 
   defp private_key, do: Path.join(home(), "private_key.pem")
 
-  @doc false
-  def port(opts) do
-    opts[:port] || (System.get_env("HECK_PORT") || "#{@default_port}") |> String.to_integer()
+  @doc "The port asked for with `--port` or `HECK_PORT`, if any."
+  def requested_port(opts) do
+    cond do
+      opts[:port] -> opts[:port]
+      port = System.get_env("HECK_PORT") -> String.to_integer(port)
+      true -> nil
+    end
   end
+
+  @doc false
+  def default_port, do: @default_port
 
   @doc false
   def url(port), do: "http://localhost:#{port}"
 
-  @doc """
-  Rebuilds the registry from the tarballs in the repository and registers the
-  repository with Hex, at the given port.
-  """
-  def update!(port) do
+  @doc "Rebuilds the registry from the tarballs in the repository."
+  def build_registry! do
     ensure_private_key!()
     File.mkdir_p!(tarballs_dir())
 
@@ -52,7 +61,12 @@ defmodule Heck do
         "--private-key",
         private_key()
       ])
+    end)
+  end
 
+  @doc "Registers the repository with Hex, as served at the port."
+  def register!(port) do
+    quietly(fn ->
       Mix.Task.rerun("hex.repo", [
         "add",
         @repo,
@@ -88,6 +102,17 @@ defmodule Heck do
     end
   end
 
+  @doc "The packages in the repository, with their versions, newest first."
+  def packages do
+    tarballs_dir()
+    |> Path.join("*-*.tar")
+    |> Path.wildcard()
+    |> Enum.map(&(&1 |> Path.basename() |> String.split("-", parts: 2) |> hd()))
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.map(&{&1, releases(&1)})
+  end
+
   @doc "The versions of a package in the repository, newest first."
   def releases(name) do
     prefix = name <> "-"
@@ -108,6 +133,28 @@ defmodule Heck do
     [hex_cache_home(), "packages", @repo, "#{name}-#{version}.tar"]
     |> Path.join()
     |> File.rm()
+  end
+
+  @doc "The URL Hex has for the repository, if any."
+  def hex_repo_url do
+    if Code.ensure_loaded?(Hex.State) do
+      apply(Hex, :start, [])
+
+      case apply(Hex.State, :fetch!, [:repos]) do
+        %{@repo => %{url: url}} -> url
+        _repos -> nil
+      end
+    end
+  end
+
+  @doc "Where Hex keeps its config, with the repositories it knows."
+  def hex_config_home do
+    if Code.ensure_loaded?(Hex.State) do
+      apply(Hex, :start, [])
+      apply(Hex.State, :fetch!, [:config_home])
+    else
+      System.get_env("HEX_HOME") || Path.expand("~/.hex")
+    end
   end
 
   defp hex_cache_home do

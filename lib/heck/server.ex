@@ -4,40 +4,45 @@ defmodule Heck.Server do
   # Serves the registry files, like a static file server, and the versions of a
   # package as JSON, which Igniter asks for to install a package without a
   # version. Igniter asks at the same path as Hex, but for JSON, while Hex sends
-  # no Accept header.
+  # no Accept header. /heck tells the heck tasks which server they talk to.
 
   @files ~r{\A/(names|versions|public_key|packages/[a-z][a-z0-9_]*|tarballs/[a-z][a-z0-9_]*-[0-9A-Za-z.+-]+\.tar)\z}
 
-  @doc "Starts serving on the given port, 0 for any. Returns the port."
-  def start(port) do
-    {:ok, listen} =
-      :gen_tcp.listen(port, [
-        :binary,
-        packet: :http_bin,
-        active: false,
-        reuseaddr: true,
-        ip: {127, 0, 0, 1}
-      ])
+  @doc """
+  Starts serving on the given port, 0 for any, logging requests to the `:log`
+  device. Returns the port.
+  """
+  def start(port, opts \\ []) do
+    log = Keyword.get(opts, :log, :stdio)
 
-    spawn_link(fn -> accept(listen) end)
-    :inet.port(listen)
+    with {:ok, listen} <-
+           :gen_tcp.listen(port, [
+             :binary,
+             packet: :http_bin,
+             active: false,
+             reuseaddr: true,
+             ip: {127, 0, 0, 1}
+           ]) do
+      spawn_link(fn -> accept(listen, log) end)
+      :inet.port(listen)
+    end
   end
 
-  defp accept(listen) do
+  defp accept(listen, log) do
     {:ok, socket} = :gen_tcp.accept(listen)
-    pid = spawn(fn -> receive(do: (:go -> serve(socket))) end)
+    pid = spawn(fn -> receive(do: (:go -> serve(socket, log))) end)
     :ok = :gen_tcp.controlling_process(socket, pid)
     send(pid, :go)
-    accept(listen)
+    accept(listen, log)
   end
 
-  defp serve(socket) do
+  defp serve(socket, log) do
     with {:ok, {:http_request, method, {:abs_path, path}, _version}} <-
            :gen_tcp.recv(socket, 0, 10_000),
          {:ok, headers} <- recv_headers(socket, %{}) do
       path = path |> String.split("?") |> hd()
       {status, type, body} = respond(method, path, headers)
-      IO.puts("#{method} #{path} #{status}")
+      IO.puts(log, "#{method} #{path} #{status}")
 
       :gen_tcp.send(socket, [
         "HTTP/1.1 #{status} #{reason(status)}\r\n",
@@ -70,12 +75,18 @@ defmodule Heck.Server do
     json? = headers |> Map.get("accept", "") |> String.contains?("application/json")
 
     case {json?, String.split(path, "/")} do
+      {_json?, ["", "heck"]} -> info()
       {true, ["", "packages", name]} -> releases(name)
       _other -> file(path)
     end
   end
 
   def respond(_method, _path, _headers), do: {405, "text/plain", "Method not allowed\n"}
+
+  defp info do
+    json = JSON.encode!(%{"heck" => Heck.version(), "home" => Heck.home(), "pid" => System.pid()})
+    {200, "application/json", json}
+  end
 
   defp releases(name) do
     case Heck.releases(name) do

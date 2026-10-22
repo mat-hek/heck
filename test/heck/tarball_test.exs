@@ -2,7 +2,7 @@ defmodule Heck.TarballTest do
   use ExUnit.Case, async: true
 
   @tag :tmp_dir
-  test "points the selected dependencies at the local repository", %{tmp_dir: dir} do
+  test "points the selected dependencies at the heck repository", %{tmp_dir: dir} do
     path = Path.join(dir, "pkg-1.0.0.tar")
 
     write_tarball!(path, [
@@ -25,7 +25,7 @@ defmodule Heck.TarballTest do
     assert metadata["description"] == "Zażółć gęślą jaźń"
 
     assert metadata["requirements"] == [
-             [{"name", "dep"}, {"optional", false}, {"repository", "local"}],
+             [{"name", "dep"}, {"optional", false}, {"repository", "heck"}],
              [{"name", "other"}, {"optional", false}, {"repository", "hexpm"}]
            ]
 

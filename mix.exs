@@ -16,6 +16,6 @@ defmodule Heck.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger, :public_key, :crypto]]
+    [extra_applications: [:logger, :public_key, :crypto, :inets]]
   end
 end

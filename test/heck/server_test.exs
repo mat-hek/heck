@@ -38,6 +38,13 @@ defmodule Heck.ServerTest do
     assert {200, _type, "tarball 0.1.0"} = get(url <> "/tarballs/foo-0.1.0.tar")
   end
 
+  test "tells which heck server it is", %{url: url} do
+    assert {200, "application/json", body} = get(url <> "/heck")
+    home = System.get_env("HECK_HOME")
+    pid = System.pid()
+    assert %{"heck" => _version, "home" => ^home, "pid" => ^pid} = JSON.decode!(body)
+  end
+
   test "serves nothing outside the registry", %{url: url} do
     assert {404, _type, _body} = get(url <> "/packages/missing", "application/json")
     assert {404, _type, _body} = get(url <> "/tarballs/missing-1.0.0.tar")

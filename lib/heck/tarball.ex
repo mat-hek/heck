@@ -12,7 +12,7 @@ defmodule Heck.Tarball do
   end
 
   @doc """
-  Points the dependencies that `local?` selects, by name, at the local
+  Points the dependencies that `local?` selects, by name, at the heck
   repository, rewriting the tarball. Returns their names.
   """
   def redirect_deps!(path, local?) do

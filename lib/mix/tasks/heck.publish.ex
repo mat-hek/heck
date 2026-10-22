@@ -13,24 +13,26 @@ defmodule Mix.Tasks.Heck.Publish do
   and projects that already fetched it then need `mix deps.unlock` and
   `mix deps.get`.
 
-  Projects then depend on the package with `repo: "local"`, while
-  `mix heck.server` runs:
+  It also starts serving the repository in the background, like
+  `mix heck.start`, if it isn't served already. One server runs at a time, for
+  one home, so while one serves another home, publishing fails. Projects then
+  depend on the package with `repo: "heck"`:
 
-      {:my_package, "~> 0.1", repo: "local"}
+      {:my_package, "~> 0.1", repo: "heck"}
 
-  The package's dependencies come from Hex, except the ones published to the
-  local repository, which come from there. So publish the dependencies first.
+  The package's dependencies come from hex.pm, except the ones published to
+  heck, which come from there. So publish the dependencies first.
 
   ## Options
 
-    * `--port` - the port `mix heck.server` runs on, `HECK_PORT` or 4325 by
-      default
+    * `--port` - the port to serve on, as for `mix heck.start`
   """
 
   @impl Mix.Task
   def run(argv) do
     {opts, _args} = OptionParser.parse!(argv, strict: [port: :integer])
-    port = Heck.port(opts)
+    # Fails early, before building, if the server can't run
+    Heck.Daemon.claim!(Heck.requested_port(opts))
 
     tarball = Path.join(System.tmp_dir!(), "heck-#{System.unique_integer([:positive])}.tar")
     build!(tarball)
@@ -43,13 +45,21 @@ defmodule Mix.Tasks.Heck.Publish do
     File.cp!(tarball, dest)
     File.rm!(tarball)
 
-    Heck.update!(port)
+    Heck.build_registry!()
     Heck.purge_hex_cache(name, version)
+
+    server_message =
+      Heck.Lock.with_lock(fn ->
+        server = Heck.Daemon.claim!(Heck.requested_port(opts))
+        {port, message} = Heck.Daemon.ensure_started!(server)
+        Heck.register!(port)
+        message
+      end)
 
     Mix.shell().info("""
 
     #{if replaced?, do: "Replaced", else: "Published"} #{name} #{version} in the "#{Heck.repo()}" \
-    repository. With `mix heck.server` running, depend on it with:
+    repository. Depend on it with:
 
         {:#{name}, "~> #{version}", repo: "#{Heck.repo()}"}
 
@@ -72,6 +82,8 @@ defmodule Mix.Tasks.Heck.Publish do
       `mix deps.get`, as their mix.lock has its previous checksum.\
       """)
     end
+
+    Mix.shell().info("\n" <> server_message)
   end
 
   # Through `mix`, so that the project's hex.build alias runs, as it does when
