@@ -12,10 +12,10 @@ defmodule Heck.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: "A local Hex repository, for trying packages out before publishing them",
-      package: [licenses: ["Apache-2.0"], links: %{"GitHub" => @github}],
+      package: [licenses: ["MIT"], links: %{"GitHub" => @github}],
       name: "heck",
       source_url: @github,
-      docs: [main: "readme", extras: ["README.md"]]
+      docs: [main: "readme", extras: ["README.md", "LICENSE"]]
     ]
   end
 

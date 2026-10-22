@@ -1,20 +1,32 @@
-# heck
+# Heck
 
 A local Hex repository, for trying packages out before publishing them.
 
 Publish a package to it, and depend on it from any project on your machine as
-if it came from Hex, with the package's `hex.build` alias, its files and its
-dependencies exactly as they will be on hex.pm.
+if it came from Hex.
+
+The library is vibe coded, this readme is mostly hand-written.
+
+## Why
+
+Imagine you're about to ship a brand new version of your lib. It works both locally and on CI, so you publish on Hex, and suddenly someone reports it doesn't even compile. _What the heck?_
+
+That's likely because of subtle differences between path, Git and Hex dependencies. For example:
+
+- Hex doesn't ship all the files you have in your project - anything custom, such as non-Elixir source files, must be listed explicitly
+- Hex stores deps in a registry, while for Git/path deps `mix.exs` is always run
+- Path deps are recompiled each time the project recompiles, for Git/Hex ones you need `mix deps.compile ...`
+- If you have only path deps, you don't even need `mix deps.get`
+
+These can bite the most when you do something uncommon, like complex Igniter setup, custom targets, or non-Elixir code.
+
+So, how can you verify that a lib works on Hex without actually publishing it there? Use Heck!
 
 ## Installation
 
 ```bash
 mix archive.install github mat-hek/heck
 ```
-
-Mix fetches the source from GitHub and builds the archive. To update heck, run
-it again, and to install a given version, add `tag`, `branch` or `ref`, for
-example `mix archive.install github mat-hek/heck tag v0.1.0`.
 
 ## Usage
 
@@ -68,14 +80,7 @@ mix heck.server   # Serves in the foreground, logging the requests
 ```
 
 The server records where it runs in `server.json` in the heck home, and logs to
-`server.log` there. When it isn't running, Hex uses the packages it has cached,
-and otherwise fails with "Package fetch failed and no cached copy available".
-
-A Hex home knows one `heck` repository, so heck runs one server at a time for
-it, serving one heck home, see [heck and Hex homes](#heck-and-hex-homes). While
-it runs, heck refuses to start another, on another port or for another heck
-home, or to publish to another heck home. Commands that start or stop the server
-wait for each other, so ones run at the same time start one server too.
+`server.log` there. When it isn't running, Hex may throw an error, but also use the packages it has cached.
 
 ## How it works
 
@@ -87,12 +92,11 @@ and registers the repository with Hex as `heck`. The repository lives in
 The server also tells Igniter the latest version of a package, which
 `mix igniter.install` asks for.
 
-## heck and Hex homes
+## Sandboxing
 
-To try packages out separately from the usual setup, for example in CI, give
-them a heck home and a Hex home of their own. Then set them for every command,
-including the ones in the projects that use the packages. Their server gets a
-free port, if the usual one runs on 4325:
+Heck being global per machine may be problematic when working with multiple projects
+simultaneously, especially for agentic workflows. To mitigate that, you can create
+a separate Heck home and a Hex home per project. Then set them for every command in all relevant projects:
 
 ```bash
 export HECK_HOME=/tmp/try/heck HEX_HOME=/tmp/try/hex
@@ -101,10 +105,9 @@ cd my_package && mix heck.publish
 cd ../my_app && mix deps.get
 ```
 
-Without `HEX_HOME`, `my_app` would get its packages from the usual setup's
-server, or fail with `Unknown repository "heck"` if there's none.
+It's especially important that `HEX_HOME` is set in all relevant projects, because Hex may otherwise
+serve whatever it has in its cache. Note that Heck runs a separate server for each `HECK_HOME`.
 
-## Limitations
+## License
 
-- Projects refer to the packages with `repo: "heck"`, which shouldn't be
-  committed.
+MIT, see [LICENSE](LICENSE).
