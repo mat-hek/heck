@@ -9,8 +9,12 @@ dependencies exactly as they will be on hex.pm.
 ## Installation
 
 ```bash
-mix archive.install hex heck
+mix archive.install github mat-hek/heck
 ```
+
+Mix fetches the source from GitHub and builds the archive. To update heck, run
+it again, and to install a given version, add `tag`, `branch` or `ref`, for
+example `mix archive.install github mat-hek/heck tag v0.1.0`.
 
 ## Usage
 
@@ -33,12 +37,21 @@ mix igniter.install heck.my_package
 ```
 
 Publishing a version again replaces it. Projects that already fetched it then
-need `mix deps.unlock my_package` and `mix deps.get`, as their `mix.lock` has
-its previous checksum.
+need `mix heck.refetch`, which fetches their heck packages again. Without it,
+they keep building the previous one, and fetching fails with "Registry checksum
+mismatch against lock", as their `mix.lock` has its previous checksum.
 
 The dependencies of a published package come from hex.pm, except the ones
 published to heck, which come from heck. So to try out packages that depend on
 each other, publish the dependencies first.
+
+To remove packages:
+
+```bash
+mix heck.unpublish my_package         # All its versions
+mix heck.unpublish my_package 0.1.0   # One version
+mix heck.clean                        # All packages
+```
 
 ## The server
 

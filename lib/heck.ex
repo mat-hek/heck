@@ -1,15 +1,15 @@
 defmodule Heck do
-  @moduledoc """
-  A local Hex repository, for trying packages out before publishing them.
+  @moduledoc false
 
-  `mix heck.publish` builds the current package, adds it to the repository and
-  starts serving it in the background, if it isn't already. Projects then depend
-  on its packages with `repo: "heck"`.
-
-  The repository lives in `~/.heck`, or in `HECK_HOME` if set. It's served on
-  `HECK_PORT` if set, and otherwise on port 4325, or any free one if that's
-  busy.
-  """
+  # A local Hex repository, for trying packages out before publishing them.
+  #
+  # `mix heck.publish` builds the current package, adds it to the repository and
+  # starts serving it in the background, if it isn't already. Projects then
+  # depend on its packages with `repo: "heck"`.
+  #
+  # The repository lives in `~/.heck`, or in `HECK_HOME` if set. It's served on
+  # `HECK_PORT` if set, and otherwise on port 4325, or any free one if that's
+  # busy.
 
   @repo "heck"
   @default_port 4325
@@ -29,6 +29,9 @@ defmodule Heck do
 
   @doc false
   def tarballs_dir, do: Path.join(public_dir(), "tarballs")
+
+  @doc false
+  def tarball_path(name, version), do: Path.join(tarballs_dir(), "#{name}-#{version}.tar")
 
   defp private_key, do: Path.join(home(), "private_key.pem")
 
@@ -113,6 +116,14 @@ defmodule Heck do
     |> Enum.map(&{&1, releases(&1)})
   end
 
+  @doc "The packages in the repository that depend on the one given from it."
+  def dependents(name) do
+    for {package, versions} <- packages(),
+        package != name,
+        Enum.any?(versions, &(name in Heck.Tarball.repo_deps!(tarball_path(package, &1)))),
+        do: package
+  end
+
   @doc "The versions of a package in the repository, newest first."
   def releases(name) do
     prefix = name <> "-"
@@ -159,6 +170,7 @@ defmodule Heck do
 
   defp hex_cache_home do
     if Code.ensure_loaded?(Hex.State) do
+      apply(Hex, :start, [])
       apply(Hex.State, :fetch!, [:cache_home])
     else
       System.get_env("HEX_HOME") || Path.expand("~/.hex")

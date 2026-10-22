@@ -10,8 +10,7 @@ defmodule Mix.Tasks.Heck.Publish do
 
   The package is built with `mix hex.build`, so the project's `hex.build` alias,
   if any, runs as with a real publish. Publishing a version again replaces it,
-  and projects that already fetched it then need `mix deps.unlock` and
-  `mix deps.get`.
+  and projects that already fetched it then need `mix heck.refetch`.
 
   It also starts serving the repository in the background, like
   `mix heck.start`, if it isn't served already. One server runs at a time, for
@@ -40,7 +39,7 @@ defmodule Mix.Tasks.Heck.Publish do
     local_deps = Heck.Tarball.redirect_deps!(tarball, &(Heck.releases(&1) != []))
 
     File.mkdir_p!(Heck.tarballs_dir())
-    dest = Path.join(Heck.tarballs_dir(), "#{name}-#{version}.tar")
+    dest = Heck.tarball_path(name, version)
     replaced? = File.exists?(dest)
     File.cp!(tarball, dest)
     File.rm!(tarball)
@@ -78,8 +77,8 @@ defmodule Mix.Tasks.Heck.Publish do
     if replaced? do
       Mix.shell().info("""
 
-      Projects that already fetched #{name} #{version} need `mix deps.unlock #{name}` and \
-      `mix deps.get`, as their mix.lock has its previous checksum.\
+      Projects that already fetched #{name} #{version} need `mix heck.refetch`, as their \
+      mix.lock has its previous checksum.\
       """)
     end
 

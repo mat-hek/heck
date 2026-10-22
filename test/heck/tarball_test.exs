@@ -33,6 +33,23 @@ defmodule Heck.TarballTest do
   end
 
   @tag :tmp_dir
+  test "lists the dependencies from the heck repository", %{tmp_dir: dir} do
+    path = Path.join(dir, "pkg-1.0.0.tar")
+
+    write_tarball!(path, [
+      {"name", "pkg"},
+      {"version", "1.0.0"},
+      {"requirements",
+       [
+         [{"name", "dep"}, {"optional", false}, {"repository", "heck"}],
+         [{"name", "other"}, {"optional", false}, {"repository", "hexpm"}]
+       ]}
+    ])
+
+    assert Heck.Tarball.repo_deps!(path) == ["dep"]
+  end
+
+  @tag :tmp_dir
   test "leaves the tarball as it is without dependencies to redirect", %{tmp_dir: dir} do
     path = Path.join(dir, "pkg-1.0.0.tar")
     write_tarball!(path, [{"name", "pkg"}, {"version", "1.0.0"}, {"requirements", []}])

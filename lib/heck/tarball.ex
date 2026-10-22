@@ -40,6 +40,24 @@ defmodule Heck.Tarball do
     Enum.reverse(redirected)
   end
 
+  @doc "The dependencies of the package that come from the heck repository."
+  def repo_deps!(path) do
+    path
+    |> read!()
+    |> Map.fetch!("metadata.config")
+    |> parse!()
+    |> Enum.find_value([], fn
+      {"requirements", requirements} when is_list(requirements) ->
+        for requirement <- requirements,
+            List.keyfind(requirement, "repository", 0) == {"repository", Heck.repo()},
+            {"name", name} <- [List.keyfind(requirement, "name", 0)],
+            do: name
+
+      _term ->
+        nil
+    end)
+  end
+
   defp redirect(requirement, redirected, local?) do
     {"name", name} = List.keyfind(requirement, "name", 0)
 
